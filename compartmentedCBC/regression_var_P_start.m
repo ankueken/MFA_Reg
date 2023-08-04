@@ -5,16 +5,18 @@ addpath('..')
 % load experimental data
 % MID absolute and relative (mean, std)
 % pool size measurements (mean, std)
-[Data_mean_abs, Data_std_abs, Data_mean_norm, Data_std_norm, AbsoluteLevel,AbsoluteLevel_std,Data_std_abs_original] = load_experimental_data;
+ [Data_mean_abs, Data_std_abs, Data_mean_norm, Data_std_norm,AbsoluteLevel,AbsoluteLevel_std,Data_std_abs_original] = load_experimental_data; % run with original time series
+%[Data_mean_abs, Data_std_abs, Data_mean_norm, Data_std_norm, AbsoluteLevel,AbsoluteLevel_std,Data_std_abs_original] = load_experimental_data(false,true); % run with dense time series obtained from data interpolation
 
-algea_c=1:5; %chlamy
-algea_s=6:10; %sorokiniana
-algea_o=11:15; %ohadii
-algea_o_eil=16:20; %ohadii eil
+algea_c=find(strcmp(Data_mean_abs.Alga,'Chlamy'));
+algea_s=find(strcmp(Data_mean_abs.Alga,'Sorokiniana'));
+algea_o=find(strcmp(Data_mean_abs.Alga,'Ohadii') & strcmp(Data_mean_abs.Light,'100 uE'));
+algea_o_eil=find(strcmp(Data_mean_abs.Alga,'Ohadii') & strcmp(Data_mean_abs.Light,'3000 uE'));
 
 network_compCBC % load network structure
 model_rev=model;
 model=convertToIrreversible(model);
+model.lb(1)=1e-3; % TCO2 should be active
 
 %% specify idx of used MIDs
 rubp_MIDs_used = find(contains(Data_mean_abs.Properties.VariableNames,'RuBP'));
@@ -28,7 +30,7 @@ udpg_MIDs_used = find(contains(Data_mean_abs.Properties.VariableNames,'UDPG'));
 %% vectors including measured starch and sucrose synthesis rates
 sta = [19 51 85 74]; % mean
 d_sta = sta*0.3; % std
-suc = [1e-4 17 35 61];
+suc = [1e-5 17 35 61];
 d_suc = suc.*0.3;
 
 MIDs_used_all=[rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used];
@@ -124,47 +126,42 @@ for sample_comp=1  % parameterization of c fixed to estimates from INCA
     disp(sample_comp)
 %% create matrix that combines the MID data
 %chlamy
-[S_t0_a1,S_t5_a1,S_t10_a1,S_t20_a1,comp_a1(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_c,:),model,[0.38 0.36 0.18 0 0.001]);
+[S_a1,comp_a1(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_c,:),model,[0.38 0.36 0.18 0 0.001]);
 %sorokiniana
-[S_t0_a2,S_t5_a2,S_t10_a2,S_t20_a2,comp_a2(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_s,:),model,[0 0.003 0 0 0]);
+[S_a2,comp_a2(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_s,:),model,[0 0.003 0 0 0]);
 %ohadii
-[S_t0_a3,S_t5_a3,S_t10_a3,S_t20_a3,comp_a3(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_o,:),model,[2.4 0.65 9999 0.002 1.68]);
+[S_a3,comp_a3(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_o,:),model,[2.4 0.65 9999 0.002 1.68]);
 %ohadii EIL
-[S_t0_a4,S_t5_a4,S_t10_a4,S_t20_a4,comp_a4(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_o_eil,:),model);
+[S_a4,comp_a4(:,sample_comp)] = build_differential_matrix_comp(Data_mean_norm(algea_o_eil,:),model);
 
 %% run regression
 % CHLAMY
-[v_a1(:,sample_comp), residuals_a1(:,sample_comp), Chi_a1(sample_comp), df_a1, EXITFLAG_a1, H_a1, P_a1(:,sample_comp)] = regression_T40_var_P(S_t0_a1,S_t5_a1,S_t10_a1,S_t20_a1, Data_mean_norm(1:5,:),...
-    Data_std_Px(1,:), Data_std_Px(2,:), Data_std_Px(3,:), Data_std_Px(4,:),Data_std_Px(5,:),...
-    rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
+[v_a1(:,sample_comp), residuals_a1(:,sample_comp), Chi_a1(sample_comp), df_a1, EXITFLAG_a1, H_a1, P_a1(:,sample_comp)] = QP_regression_var_P(S_a1, Data_mean_norm(algea_c,:),...
+    Data_std_Px(algea_c,:), rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
     sta(1),d_sta(1),suc(1),d_suc(1),...
     AbsoluteLevel.RuBP(1), AbsoluteLevel.F6P(1), AbsoluteLevel.G6P(1), AbsoluteLevel.FBP(1), AbsoluteLevel.G1P(1), AbsoluteLevel.ADPG_Levels_nmol_gDW__(1), AbsoluteLevel.UDPG(1),...
-    AbsoluteLevel_std.RuBP(1), AbsoluteLevel_std.F6P(1), AbsoluteLevel_std.G6P(1), AbsoluteLevel_std.FBP(1), AbsoluteLevel_std.G1P(1), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(1), AbsoluteLevel_std.UDPG(1),131);
+    AbsoluteLevel_std.RuBP(1), AbsoluteLevel_std.F6P(1), AbsoluteLevel_std.G6P(1), AbsoluteLevel_std.FBP(1), AbsoluteLevel_std.G1P(1), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(1), AbsoluteLevel_std.UDPG(1));
 
 % SOROKINIANA
-[v_a2(:,sample_comp), residuals_a2(:,sample_comp), Chi_a2(sample_comp), df_a2, EXITFLAG_a2, H_a2, P_a2(:,sample_comp)] = regression_T40_var_P(S_t0_a2,S_t5_a2,S_t10_a2,S_t20_a2, Data_mean_norm(6:10,:), ...
-    Data_std_Px(6,:),Data_std_Px(7,:), Data_std_Px(8,:), Data_std_Px(9,:),Data_std_Px(10,:),...
-    rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
+[v_a2(:,sample_comp), residuals_a2(:,sample_comp), Chi_a2(sample_comp), df_a2, EXITFLAG_a2, H_a2, P_a2(:,sample_comp)] = QP_regression_var_P(S_a2, Data_mean_norm(algea_s,:), ...
+    Data_std_Px(algea_s,:), rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
     sta(2),d_sta(2),suc(2),d_suc(2),...
     AbsoluteLevel.RuBP(2), AbsoluteLevel.F6P(2), AbsoluteLevel.G6P(2), AbsoluteLevel.FBP(2), AbsoluteLevel.G1P(2), AbsoluteLevel.ADPG_Levels_nmol_gDW__(2), AbsoluteLevel.UDPG(2),...
-    AbsoluteLevel_std.RuBP(2), AbsoluteLevel_std.F6P(2), AbsoluteLevel_std.G6P(2), AbsoluteLevel_std.FBP(2), AbsoluteLevel_std.G1P(2), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(2), AbsoluteLevel_std.UDPG(2),267);
+    AbsoluteLevel_std.RuBP(2), AbsoluteLevel_std.F6P(2), AbsoluteLevel_std.G6P(2), AbsoluteLevel_std.FBP(2), AbsoluteLevel_std.G1P(2), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(2), AbsoluteLevel_std.UDPG(2));
 
 % OHADII LL
-[v_a3(:,sample_comp), residuals_a3(:,sample_comp), Chi_a3(sample_comp), df_a3, EXITFLAG_a3, H_a3, P_a3(:,sample_comp)] = regression_T20_var_P(S_t0_a2,S_t5_a2,S_t10_a2,S_t20_a2, Data_mean_norm(11:15,:), ...
-    Data_std_Px(11,:), Data_std_Px(12,:), Data_std_Px(13,:), Data_std_Px(14,:),Data_std_Px(15,:),...
-    rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
+[v_a3(:,sample_comp), residuals_a3(:,sample_comp), Chi_a3(sample_comp), df_a3, EXITFLAG_a3, H_a3, P_a3(:,sample_comp)] = QP_regression_var_P(S_a2, Data_mean_norm(algea_o,:), ...
+    Data_std_Px(algea_o,:), rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
     sta(3),d_sta(3),suc(3),d_suc(3),...
     AbsoluteLevel.RuBP(3), AbsoluteLevel.F6P(3), AbsoluteLevel.G6P(3), AbsoluteLevel.FBP(3), AbsoluteLevel.G1P(3), AbsoluteLevel.ADPG_Levels_nmol_gDW__(3), AbsoluteLevel.UDPG(3),...
-    AbsoluteLevel_std.RuBP(3), AbsoluteLevel_std.F6P(3), AbsoluteLevel_std.G6P(3), AbsoluteLevel_std.FBP(3), AbsoluteLevel_std.G1P(3), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(3), AbsoluteLevel_std.UDPG(3),414);
+    AbsoluteLevel_std.RuBP(3), AbsoluteLevel_std.F6P(3), AbsoluteLevel_std.G6P(3), AbsoluteLevel_std.FBP(3), AbsoluteLevel_std.G1P(3), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(3), AbsoluteLevel_std.UDPG(3),length(algea_o));
 
 % OHADII EIL
-[v_a4(:,sample_comp), residuals_a4(:,sample_comp), Chi_a4(sample_comp), df_a4, EXITFLAG_a4, H_a4, P_a4(:,sample_comp)] = regression_T40_var_P(S_t0_a2,S_t5_a2,S_t10_a2,S_t20_a2, Data_mean_norm(16:20,:), ...
-    Data_std_Px(16,:), Data_std_Px(17,:), Data_std_Px(18,:), Data_std_Px(19,:),Data_std_Px(20,:),...
-    rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
+[v_a4(:,sample_comp), residuals_a4(:,sample_comp), Chi_a4(sample_comp), df_a4, EXITFLAG_a4, H_a4, P_a4(:,sample_comp)] = QP_regression_var_P(S_a2, Data_mean_norm(algea_o_eil,:), ...
+    Data_std_Px(algea_o_eil,:), rubp_MIDs_used, f6p_MIDs_used, g6p_MIDs_used, fbp_MIDs_used, g1p_MIDs_used, adpg_MIDs_used, udpg_MIDs_used, model,...
     sta(4),d_sta(4),suc(4),d_suc(4),...
     AbsoluteLevel.RuBP(4), AbsoluteLevel.F6P(4), AbsoluteLevel.G6P(4), AbsoluteLevel.FBP(4), AbsoluteLevel.G1P(4), AbsoluteLevel.ADPG_Levels_nmol_gDW__(4), AbsoluteLevel.UDPG(4),...
-    AbsoluteLevel_std.RuBP(4), AbsoluteLevel_std.F6P(4), AbsoluteLevel_std.G6P(4), AbsoluteLevel_std.FBP(4), AbsoluteLevel_std.G1P(4), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(4), AbsoluteLevel_std.UDPG(4),635);
-
+    AbsoluteLevel_std.RuBP(4), AbsoluteLevel_std.F6P(4), AbsoluteLevel_std.G6P(4), AbsoluteLevel_std.FBP(4), AbsoluteLevel_std.G1P(4), AbsoluteLevel_std.ADPG_Levels_nmol_gDW__(4), AbsoluteLevel_std.UDPG(4));
 end
 
 %% find best c parameterization and do bootstrap
@@ -189,4 +186,11 @@ disp(Chi_a4<chi2inv(0.975,df_a4))
 
 AbsoluteLevel.RuBP./[v_a1(2);v_a2(2);v_a3(2);v_a4(2)]
 table(model.rxns, v_a1, v_a2, v_a3, v_a4);
-% bootstrap_non_parametric_var_P_v2
+
+v_a1_net = get_net_flux(v_a1,model,model_rev);
+v_a2_net = get_net_flux(v_a2,model,model_rev);
+v_a3_net = get_net_flux(v_a3,model,model_rev);
+
+% bootstrap_non_parametric_var_P
+
+

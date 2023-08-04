@@ -1,5 +1,5 @@
 %% build matrix S combining MID data for compartmented CBC model
-function [S_t0,S_t5,S_t10,S_t20,comp] = build_differential_matrix_comp(Data_mean,model,comp)
+function [S,comp] = build_differential_matrix_comp(Data_mean,model,comp)
 % INPUT:
 % Data_mean: MID data
 % model: network structure
@@ -19,11 +19,11 @@ GLUT_MID_norm = Data_mean{:,contains(Data_mean.Properties.VariableNames,'glut')}
 
 % sample compartmentation parameter
 comp_levels=table(ones(6,1),'VariableNames',{'cytosol'});
-comp_levels.cytosol(2)=0.1 + (0.9-0.1).*rand(1,1);
-comp_levels.cytosol(3)=0.1 + (0.9-0.1).*rand(1,1);
-comp_levels.cytosol(4)=0.1 + (0.9-0.1).*rand(1,1);
-comp_levels.cytosol(5)=0.1 + (0.9-0.1).*rand(1,1);
-comp_levels.cytosol(6)=0.1 + (0.9-0.1).*rand(1,1);
+comp_levels.cytosol(2)=0.1 + (0.9-0.1).*rand(1,1); % T3P
+comp_levels.cytosol(3)=0.1 + (0.9-0.1).*rand(1,1); % F6P
+comp_levels.cytosol(4)=0.1 + (0.9-0.1).*rand(1,1); % FBP
+comp_levels.cytosol(5)=0.1 + (0.9-0.1).*rand(1,1); % G1P
+comp_levels.cytosol(6)=0.1 + (0.9-0.1).*rand(1,1); % G6P
 
 if ~exist('comp')
     comp=comp_levels.cytosol(2:6);
@@ -38,7 +38,7 @@ end
 
 N=model.S;
 
-for tp=1:4 % for each time point build matrix S
+for tp=1:height(Data_mean)-1 % for each time point (except last) build matrix S
     
     S_RuBP=zeros(6,size(N,2)); % (#MIDs x #fluxes)
     S_ADPG=zeros(7,size(N,2));
@@ -176,14 +176,15 @@ for tp=1:4 % for each time point build matrix S
     S_F6P(:,find(strcmp(model.rxns,'PGIc_rev')))=comp_levels.cytosol(6)*G6P_MID_norm(tp,:); %v11b
     
     % combine submatrices created for individual metabolites
-    if tp==1
-        S_t0 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
-    elseif tp==2
-        S_t5 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
-    elseif tp==3
-        S_t10 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
-    elseif tp==4
-        S_t20 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
-    end
+    S{tp} = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
+    % if tp==1
+    %     S_t0 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
+    % elseif tp==2
+    %     S_t5 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
+    % elseif tp==3
+    %     S_t10 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
+    % elseif tp==4
+    %     S_t20 = [S_RuBP; S_F6P; S_G6P; S_FBP; S_G1P; S_ADPG; S_UDPG];
+    % end
 end
 end
